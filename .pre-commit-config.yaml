@@ -1,0 +1,59 @@
+---
+repos:
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v3.6.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-json
+      - id: check-yaml
+        exclude: ^terraform/
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+  - repo: https://github.com/tekwizely/pre-commit-golang
+    rev: v1.0.0-rc.1
+    hooks:
+      - id: go-mod-tidy
+      - id: go-fmt
+  - repo: https://github.com/DavidAnson/markdownlint-cli2
+    rev: v0.18.1
+    hooks:
+      - id: markdownlint-cli2
+        args: ["--fix"]
+        files: ".*\\.(md|mdc)$"
+        exclude: "^(\\.claude/.*|CLAUDE\\.md|context/.*)$"
+        additional_dependencies: ["markdownlint-cli2"]
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        args: ["-x"]
+  - repo: https://github.com/scop/pre-commit-shfmt
+    rev: v3.10.0-1
+    hooks:
+      - id: shfmt
+        args: ["-i", "4", "-ci", "-bn"]
+  - repo: https://github.com/antonbabenko/pre-commit-terraform
+    rev: v1.97.3
+    hooks:
+      - id: terraform_fmt
+      - id: terraform_providers_lock
+        args:
+          - --hook-config=--mode=only-check-is-current-lockfile-cross-platform
+          - --args=-platform=darwin_arm64
+          - --args=-platform=linux_amd64
+      - id: terraform_validate
+        args:
+          - --hook-config=--retry-once-with-cleanup=true
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+  - repo: https://github.com/zizmorcore/zizmor-pre-commit
+    rev: v1.13.0
+    hooks:
+      - id: zizmor
+        args: ["--min-severity", "high", "--min-confidence", "medium"]
