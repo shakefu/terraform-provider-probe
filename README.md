@@ -90,8 +90,7 @@ and configures endpoints accordingly.
 ### Arguments
 
 - `type` (Required) - Resource type. Accepts Terraform-style names
-  (`aws_dynamodb_table`) or AWS Cloud Control type names
-  (`AWS::DynamoDB::Table`).
+  (`aws_dynamodb_table`) or AWS-style type names (`AWS::DynamoDB::Table`).
 - `id` (Required) - Resource identifier (table name, bucket name, etc.).
 
 ### Attributes
@@ -99,23 +98,19 @@ and configures endpoints accordingly.
 - `exists` - Whether the resource exists.
 - `arn` - Resource ARN (null if resource doesn't exist).
 - `properties` - Resource properties as a map (null if resource doesn't exist).
+  Includes resource-specific attributes and Tags when available.
 
 ## Supported Resource Types
 
-| Terraform Type         | Cloud Control Type       |
-| ---------------------- | ------------------------ |
-| `aws_dynamodb_table`   | `AWS::DynamoDB::Table`   |
-| `aws_s3_bucket`        | `AWS::S3::Bucket`        |
-| `aws_sqs_queue`        | `AWS::SQS::Queue`        |
-| `aws_sns_topic`        | `AWS::SNS::Topic`        |
-| `aws_lambda_function`  | `AWS::Lambda::Function`  |
-| `aws_iam_role`         | `AWS::IAM::Role`         |
-| `aws_ecs_cluster`      | `AWS::ECS::Cluster`      |
+The provider uses native AWS SDK calls for full property retrieval, including
+Tags. Currently supported resource types:
 
-Pass Cloud Control type names directly for any resource supported by the
-[AWS Cloud Control API][cloudcontrol].
+| Terraform Type       | AWS Type               | Identifier     |
+| -------------------- | ---------------------- | -------------- |
+| `aws_dynamodb_table` | `AWS::DynamoDB::Table` | Table name     |
+| `aws_s3_bucket`      | `AWS::S3::Bucket`      | Bucket name    |
 
-[cloudcontrol]: https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/supported-resources.html
+Additional resource types will be added incrementally. Contributions welcome!
 
 ## Building from Source
 

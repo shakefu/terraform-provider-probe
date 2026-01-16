@@ -27,9 +27,9 @@ already exist.
 
 ## How It Works
 
-The provider uses the [AWS Cloud Control API](https://docs.aws.amazon.com/cloudcontrolapi/latest/userguide/what-is-cloudcontrolapi.html)
-to check for resource existence. When a resource doesn't exist, it returns
-`exists = false` instead of failing with an error.
+The provider uses native AWS SDK calls to check for resource existence.
+When a resource doesn't exist, it returns `exists = false` instead of failing
+with an error. Properties and Tags are retrieved when the resource exists.
 
 ## Example Usage
 
@@ -105,5 +105,14 @@ configured.
 
 - `region` (String) AWS region. Defaults to `AWS_REGION` environment variable,
   then `us-east-1`.
-- `endpoint` (String) Custom endpoint URL for AWS Cloud Control API. Useful
-  for LocalStack or other compatible services.
+- `endpoint` (String) Custom endpoint URL for AWS APIs. Useful for LocalStack
+  or other compatible services.
+
+## Supported Resource Types
+
+| Terraform Type       | AWS Type               | Identifier     |
+| -------------------- | ---------------------- | -------------- |
+| `aws_dynamodb_table` | `AWS::DynamoDB::Table` | Table name     |
+| `aws_s3_bucket`      | `AWS::S3::Bucket`      | Bucket name    |
+
+Additional resource types will be added incrementally.
