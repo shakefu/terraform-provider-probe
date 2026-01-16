@@ -9,9 +9,9 @@ description: |-
 
 Checks whether an AWS resource exists without failing when it doesn't.
 
-This data source uses the AWS Cloud Control API to check for resource
-existence. Unlike standard AWS data sources that fail with an error when a
-resource doesn't exist, this data source returns `exists = false`.
+This data source uses native AWS SDK calls to check for resource existence
+and retrieve properties. Unlike standard AWS data sources that fail with an
+error when a resource doesn't exist, this data source returns `exists = false`.
 
 ## Example Usage
 
@@ -63,12 +63,16 @@ output "contacts_table_arn" {
 }
 ```
 
-### Using Cloud Control type names
+### Accessing Tags
 
 ```terraform
-data "probe" "lambda" {
-  type = "AWS::Lambda::Function"
-  id   = "my-function"
+data "probe" "my_table" {
+  type = "aws_dynamodb_table"
+  id   = "my-table"
+}
+
+output "table_tags" {
+  value = data.probe.my_table.exists ? data.probe.my_table.properties.Tags : null
 }
 ```
 
@@ -77,34 +81,25 @@ data "probe" "lambda" {
 ### Required
 
 - `type` (String) Resource type. Accepts Terraform-style names
-  (e.g., `aws_dynamodb_table`) or AWS Cloud Control type names
+  (e.g., `aws_dynamodb_table`) or AWS-style type names
   (e.g., `AWS::DynamoDB::Table`).
-- `id` (String) Resource identifier (table name, bucket name, function
-  name, etc.).
+- `id` (String) Resource identifier (table name, bucket name, etc.).
 
 ### Read-Only
 
 - `exists` (Boolean) Whether the resource exists.
 - `arn` (String) Resource ARN. Null if the resource does not exist.
-- `properties` (Dynamic) Resource properties as returned by the Cloud
-  Control API. Null if the resource does not exist.
+- `properties` (Dynamic) Resource properties including Tags when available.
+  Null if the resource does not exist.
 
 ## Supported Resource Types
 
-The following Terraform resource type names are mapped to Cloud Control types:
+The provider uses native AWS SDK calls for each resource type. Currently
+supported:
 
-| Terraform Type         | Cloud Control Type       |
-| ---------------------- | ------------------------ |
-| `aws_dynamodb_table`   | `AWS::DynamoDB::Table`   |
-| `aws_s3_bucket`        | `AWS::S3::Bucket`        |
-| `aws_sqs_queue`        | `AWS::SQS::Queue`        |
-| `aws_sns_topic`        | `AWS::SNS::Topic`        |
-| `aws_lambda_function`  | `AWS::Lambda::Function`  |
-| `aws_iam_role`         | `AWS::IAM::Role`         |
-| `aws_iam_policy`       | `AWS::IAM::ManagedPolicy`|
-| `aws_ecs_cluster`      | `AWS::ECS::Cluster`      |
-| `aws_ecs_service`      | `AWS::ECS::Service`      |
-| `aws_apigatewayv2_api` | `AWS::ApiGatewayV2::Api` |
+| Terraform Type       | AWS Type               | Identifier     |
+| -------------------- | ---------------------- | -------------- |
+| `aws_dynamodb_table` | `AWS::DynamoDB::Table` | Table name     |
+| `aws_s3_bucket`      | `AWS::S3::Bucket`      | Bucket name    |
 
-You can also pass Cloud Control type names directly for any resource type
-supported by the Cloud Control API.
+Additional resource types will be added incrementally.

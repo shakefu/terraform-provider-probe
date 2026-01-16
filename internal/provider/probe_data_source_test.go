@@ -23,10 +23,9 @@ var testAccProtoV6ProviderFactories = map[string]func() (tfprotov6.ProviderServe
 }
 
 // testAccPreCheck validates that required environment variables are set for
-// acceptance tests to run. Tests can use LocalStack Pro (which supports Cloud
-// Control API) or real AWS credentials.
+// acceptance tests to run. Tests use LocalStack or real AWS credentials.
 func testAccPreCheck(t *testing.T) {
-	// If LocalStack is running, use it (requires Pro for Cloud Control API)
+	// If LocalStack is running, use it
 	if localStackRunning() {
 		return
 	}
@@ -87,8 +86,8 @@ provider "probe" {
 }
 
 data "probe" "test" {
-  type = "AWS::S3::Bucket"
-  id   = "nonexistent-bucket-that-does-not-exist-12345"
+  type = "AWS::DynamoDB::Table"
+  id   = "nonexistent-table-that-does-not-exist-12345"
 }
 `
 
@@ -102,10 +101,12 @@ func TestAccProbeDataSource_existingResource(t *testing.T) {
 
 	if useLocalStack() {
 		config = testAccProbeDataSourceConfig_existing_localstack
-		// LocalStack's CloudControl returns minimal properties without ARN
+		// With native SDK, we get full properties including ARN
 		checks = resource.ComposeAggregateTestCheckFunc(
 			resource.TestCheckResourceAttr("data.probe.test", "exists", "true"),
+			resource.TestCheckResourceAttrSet("data.probe.test", "arn"),
 			resource.TestCheckResourceAttrSet("data.probe.test", "properties.%"),
+			resource.TestCheckResourceAttr("data.probe.test", "properties.TableName", "probe-acceptance-test-table"),
 		)
 	}
 
@@ -163,19 +164,31 @@ provider "aws" {
   secret_key                  = "test"
 
   endpoints {
-    s3 = "http://s3.localhost.localstack.cloud:4566"
+    dynamodb = "http://localhost:4566"
   }
 }
 
-resource "aws_s3_bucket" "test" {
-  bucket = "probe-acceptance-test-bucket"
+resource "aws_dynamodb_table" "test" {
+  name         = "probe-acceptance-test-table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
+
+  attribute {
+    name = "id"
+    type = "S"
+  }
+
+  tags = {
+    Environment = "test"
+    Project     = "probe-provider"
+  }
 }
 
 data "probe" "test" {
-  type = "AWS::S3::Bucket"
-  id   = aws_s3_bucket.test.bucket
+  type = "AWS::DynamoDB::Table"
+  id   = aws_dynamodb_table.test.name
 
-  depends_on = [aws_s3_bucket.test]
+  depends_on = [aws_dynamodb_table.test]
 }
 `
 
@@ -200,7 +213,7 @@ func TestAccProbeDataSource_terraformTypeSyntax(t *testing.T) {
 }
 
 // Tests that Terraform-style resource types (aws_dynamodb_table) are correctly
-// mapped to Cloud Control types (AWS::DynamoDB::Table).
+// resolved to the appropriate native SDK prober.
 const testAccProbeDataSourceConfig_terraformType = `
 data "probe" "test" {
   type = "aws_dynamodb_table"
@@ -214,7 +227,78 @@ provider "probe" {
 }
 
 data "probe" "test" {
-  type = "aws_s3_bucket"
-  id   = "nonexistent-bucket-terraform-syntax-12345"
+  type = "aws_dynamodb_table"
+  id   = "nonexistent-table-terraform-syntax-12345"
+}
+`
+
+func TestAccProbeDataSource_tagsReturned(t *testing.T) {
+	if !useLocalStack() {
+		t.Skip("Tags test only runs against LocalStack")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"aws": {
+				Source:            "hashicorp/aws",
+				VersionConstraint: "~> 5.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProbeDataSourceConfig_tags_localstack,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.probe.test", "exists", "true"),
+					resource.TestCheckResourceAttrSet("data.probe.test", "arn"),
+					resource.TestCheckResourceAttr("data.probe.test", "properties.Tags.%", "2"),
+					resource.TestCheckResourceAttr("data.probe.test", "properties.Tags.Environment", "test"),
+					resource.TestCheckResourceAttr("data.probe.test", "properties.Tags.Project", "probe-tags-test"),
+				),
+			},
+		},
+	})
+}
+
+const testAccProbeDataSourceConfig_tags_localstack = `
+provider "probe" {
+  localstack = true
+}
+
+provider "aws" {
+  region                      = "us-east-1"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  access_key                  = "test"
+  secret_key                  = "test"
+
+  endpoints {
+    dynamodb = "http://localhost:4566"
+  }
+}
+
+resource "aws_dynamodb_table" "test" {
+  name         = "probe-tags-test-table"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "id"
+
+  attribute {
+    name = "id"
+    type = "S"
+  }
+
+  tags = {
+    Environment = "test"
+    Project     = "probe-tags-test"
+  }
+}
+
+data "probe" "test" {
+  type = "aws_dynamodb_table"
+  id   = aws_dynamodb_table.test.name
+
+  depends_on = [aws_dynamodb_table.test]
 }
 `

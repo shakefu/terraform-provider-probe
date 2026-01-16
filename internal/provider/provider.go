@@ -12,7 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/provider"
 	"github.com/hashicorp/terraform-plugin-framework/provider/schema"
@@ -123,11 +122,8 @@ func (p *ProbeProvider) Configure(ctx context.Context, req provider.ConfigureReq
 		}
 	}
 
-	// Create Cloud Control client
-	client := cloudcontrol.NewFromConfig(cfg)
-
-	// Make the client available to data sources
-	resp.DataSourceData = client
+	// Make the AWS config available to data sources
+	resp.DataSourceData = cfg
 }
 
 func (p *ProbeProvider) Resources(ctx context.Context) []func() resource.Resource {

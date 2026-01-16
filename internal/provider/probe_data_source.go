@@ -5,12 +5,9 @@ package provider
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/service/cloudcontrol"
-	cctypes "github.com/aws/aws-sdk-go-v2/service/cloudcontrol/types"
 	"github.com/hashicorp/terraform-plugin-framework/attr"
 	"github.com/hashicorp/terraform-plugin-framework/datasource"
 	"github.com/hashicorp/terraform-plugin-framework/datasource/schema"
@@ -24,7 +21,8 @@ var _ datasource.DataSourceWithConfigure = &ProbeDataSource{}
 
 // ProbeDataSource defines the data source implementation.
 type ProbeDataSource struct {
-	client *cloudcontrol.Client
+	cfg      aws.Config
+	registry *ProberRegistry
 }
 
 // ProbeDataSourceModel describes the data source data model.
@@ -79,16 +77,17 @@ func (d *ProbeDataSource) Configure(ctx context.Context, req datasource.Configur
 		return
 	}
 
-	client, ok := req.ProviderData.(*cloudcontrol.Client)
+	cfg, ok := req.ProviderData.(aws.Config)
 	if !ok {
 		resp.Diagnostics.AddError(
 			"Unexpected Data Source Configure Type",
-			fmt.Sprintf("Expected *cloudcontrol.Client, got: %T. Please report this issue to the provider developers.", req.ProviderData),
+			fmt.Sprintf("Expected aws.Config, got: %T. Please report this issue to the provider developers.", req.ProviderData),
 		)
 		return
 	}
 
-	d.client = client
+	d.cfg = cfg
+	d.registry = NewProberRegistry(cfg)
 }
 
 func (d *ProbeDataSource) Read(ctx context.Context, req datasource.ReadRequest, resp *datasource.ReadResponse) {
@@ -99,36 +98,27 @@ func (d *ProbeDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	cloudControlType := resolveCloudControlType(data.Type.ValueString())
+	resourceType := data.Type.ValueString()
 	identifier := data.ID.ValueString()
 
-	// Use ListResources and filter by identifier for LocalStack compatibility.
-	// GetResource is not implemented in LocalStack.
-	var foundResource *cctypes.ResourceDescription
-	paginator := cloudcontrol.NewListResourcesPaginator(d.client, &cloudcontrol.ListResourcesInput{
-		TypeName: aws.String(cloudControlType),
-	})
-
-	for paginator.HasMorePages() {
-		page, err := paginator.NextPage(ctx)
-		if err != nil {
-			resp.Diagnostics.AddError("Probe failed", err.Error())
-			return
-		}
-
-		for _, resource := range page.ResourceDescriptions {
-			if resource.Identifier != nil && *resource.Identifier == identifier {
-				foundResource = &resource
-				break
-			}
-		}
-
-		if foundResource != nil {
-			break
-		}
+	// Get the appropriate prober for this resource type
+	prober, err := d.registry.GetProber(resourceType)
+	if err != nil {
+		resp.Diagnostics.AddError(
+			"Unsupported Resource Type",
+			fmt.Sprintf("Resource type %q is not supported. Supported types: %v", resourceType, d.registry.SupportedTypes()),
+		)
+		return
 	}
 
-	if foundResource == nil {
+	// Probe the resource
+	result, err := prober.Probe(ctx, identifier)
+	if err != nil {
+		resp.Diagnostics.AddError("Probe failed", err.Error())
+		return
+	}
+
+	if !result.Exists {
 		// Resource not found - NOT AN ERROR
 		data.Exists = types.BoolValue(false)
 		data.Arn = types.StringNull()
@@ -137,21 +127,17 @@ func (d *ProbeDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 		return
 	}
 
-	// Parse properties JSON into dynamic type
-	props, propsDiags := parsePropertiesToDynamic(*foundResource.Properties)
+	// Convert properties to Terraform dynamic type
+	props, propsDiags := convertMapToDynamic(result.Properties)
 	resp.Diagnostics.Append(propsDiags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
 
-	// Extract ARN from properties
-	propsMap := parsePropertiesToMap(*foundResource.Properties)
-	arnValue := extractArn(propsMap)
-
 	data.Exists = types.BoolValue(true)
 	data.Properties = props
-	if arnValue != "" {
-		data.Arn = types.StringValue(arnValue)
+	if result.Arn != "" {
+		data.Arn = types.StringValue(result.Arn)
 	} else {
 		data.Arn = types.StringNull()
 	}
@@ -159,21 +145,11 @@ func (d *ProbeDataSource) Read(ctx context.Context, req datasource.ReadRequest, 
 	resp.Diagnostics.Append(resp.State.Set(ctx, &data)...)
 }
 
-// parsePropertiesToMap parses the JSON properties string into a map.
-func parsePropertiesToMap(jsonStr string) map[string]interface{} {
-	var props map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &props); err != nil {
-		return nil
-	}
-	return props
-}
-
-// parsePropertiesToDynamic converts JSON properties to a Terraform dynamic value.
-func parsePropertiesToDynamic(jsonStr string) (types.Dynamic, diag.Diagnostics) {
+// convertMapToDynamic converts a map[string]any to a Terraform dynamic value.
+func convertMapToDynamic(props map[string]any) (types.Dynamic, diag.Diagnostics) {
 	var diags diag.Diagnostics
-	var props map[string]interface{}
-	if err := json.Unmarshal([]byte(jsonStr), &props); err != nil {
-		diags.AddError("Failed to parse properties", err.Error())
+
+	if len(props) == 0 {
 		return types.DynamicNull(), diags
 	}
 
@@ -187,7 +163,7 @@ func parsePropertiesToDynamic(jsonStr string) (types.Dynamic, diag.Diagnostics) 
 }
 
 // convertToAttrValue recursively converts Go values to Terraform attr.Value.
-func convertToAttrValue(v interface{}) (attr.Value, error) {
+func convertToAttrValue(v any) (attr.Value, error) {
 	if v == nil {
 		return types.StringNull(), nil
 	}
@@ -198,9 +174,13 @@ func convertToAttrValue(v interface{}) (attr.Value, error) {
 	case float64:
 		// JSON numbers are always float64
 		return types.Float64Value(val), nil
+	case int:
+		return types.Int64Value(int64(val)), nil
+	case int64:
+		return types.Int64Value(val), nil
 	case bool:
 		return types.BoolValue(val), nil
-	case []interface{}:
+	case []any:
 		if len(val) == 0 {
 			return types.ListNull(types.StringType), nil
 		}
@@ -215,7 +195,7 @@ func convertToAttrValue(v interface{}) (attr.Value, error) {
 		// Determine element type from first element
 		elemType := elements[0].Type(context.Background())
 		return types.ListValueMust(elemType, elements), nil
-	case map[string]interface{}:
+	case map[string]any:
 		if len(val) == 0 {
 			return types.MapNull(types.StringType), nil
 		}
@@ -233,6 +213,16 @@ func convertToAttrValue(v interface{}) (attr.Value, error) {
 			attrTypes[k] = v.Type(context.Background())
 		}
 		return types.ObjectValueMust(attrTypes, elements), nil
+	case map[string]string:
+		// Handle map[string]string (e.g., Tags)
+		if len(val) == 0 {
+			return types.MapNull(types.StringType), nil
+		}
+		elements := make(map[string]attr.Value)
+		for k, v := range val {
+			elements[k] = types.StringValue(v)
+		}
+		return types.MapValueMust(types.StringType, elements), nil
 	default:
 		// Fallback to string representation
 		return types.StringValue(fmt.Sprintf("%v", val)), nil
