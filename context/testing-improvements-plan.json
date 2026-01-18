@@ -10,7 +10,7 @@
     {
       "id": "add-coverage-threshold",
       "name": "Add coverage threshold enforcement to CI",
-      "status": "pending",
+      "status": "complete",
       "priority": 1,
       "blocked_by": null,
       "output_file": ".github/workflows/test.yml",
@@ -45,7 +45,7 @@
     {
       "id": "add-acceptance-tests-ci",
       "name": "Add acceptance tests with LocalStack to CI",
-      "status": "pending",
+      "status": "complete",
       "priority": 3,
       "blocked_by": null,
       "output_file": ".github/workflows/test.yml",

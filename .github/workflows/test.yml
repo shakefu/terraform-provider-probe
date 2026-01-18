@@ -38,6 +38,16 @@ jobs:
           cache: true
       - run: go mod download
       - run: go test -v -coverprofile=coverage.out ./...
+      - name: Check coverage threshold
+        run: |
+          COVERAGE=$(go tool cover -func=coverage.out | grep total | awk '{print $3}' | sed 's/%//')
+          echo "Total coverage: ${COVERAGE}%"
+          THRESHOLD=60
+          if (( $(echo "$COVERAGE < $THRESHOLD" | bc -l) )); then
+            echo "::error::Coverage ${COVERAGE}% is below threshold of ${THRESHOLD}%"
+            exit 1
+          fi
+          echo "Coverage ${COVERAGE}% meets threshold of ${THRESHOLD}%"
       - name: Upload coverage
         uses: actions/upload-artifact@v4
         with:
@@ -58,3 +68,45 @@ jobs:
         run: pipx install prek
       - name: Run pre-commit
         run: prek run --all-files
+
+  acceptance:
+    name: Acceptance Tests
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        ports:
+          - 4566:4566
+        env:
+          SERVICES: s3,dynamodb
+          DEFAULT_REGION: us-east-1
+        options: >-
+          --health-cmd "curl -f http://localhost:4566/_localstack/health"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: "go.mod"
+          cache: true
+      - run: go mod download
+      - name: Wait for LocalStack
+        run: |
+          for i in {1..30}; do
+            if curl -sf http://localhost:4566/_localstack/health > /dev/null; then
+              echo "LocalStack is ready"
+              exit 0
+            fi
+            echo "Waiting for LocalStack... ($i/30)"
+            sleep 2
+          done
+          echo "LocalStack failed to start"
+          exit 1
+      - name: Run acceptance tests
+        env:
+          TF_ACC: "1"
+        run: go test -v -timeout 10m ./...
