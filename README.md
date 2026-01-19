@@ -8,15 +8,16 @@ without failing when they don't.
 
 Sponsored by [<img alt="Textla.com" width="72" height="29" alt="Textla Logo Go Green" src="https://github.com/user-attachments/assets/2856b6ea-2ec7-4c24-a454-855a826646a8" />](https://textla.com).
 
-## The Problem
-
 Terraform and OpenTofu have no native way to gracefully check if a resource
-exists before deciding whether to create it. All existing approaches fail:
+exists before deciding whether to create it.
 
-1. **Standard data sources** - Fail with an error if the resource doesn't exist
-2. **`awscc` plural data sources** - Fail with "Empty result" when none exist
-3. **`external` data source** - Requires bash scripts and manual configuration
-4. **Import blocks** - Fail if the resource doesn't exist (no "optional import")
+The current ways to find and read existing resources for shared configuration
+all either fail, or have problematic external dependencies:
+
+- Standard data sources - Fail with an error if the resource doesn't exist
+- `awscc` plural data sources - Fail with "Empty result" when none exist
+- `external` data source - Requires bash scripts and manual configuration
+- [`import` blocks](https://developer.hashicorp.com/terraform/language/block/import) - Fail if the resource doesn't exist (no "optional import")
 
 This provider solves that problem.
 
