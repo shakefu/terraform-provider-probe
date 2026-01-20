@@ -390,10 +390,9 @@ func TestConvertToAttrValue_SliceOfMaps(t *testing.T) {
 	}
 }
 
-func TestConvertToAttrValue_MixedSlice(t *testing.T) {
-	// This tests the case where list elements have different types
-	// The function uses the first element's type for the list type
-	input := []any{"string", float64(42)}
+func TestConvertToAttrValue_IntSlice(t *testing.T) {
+	// Test slice of numeric values (all same type)
+	input := []any{float64(1), float64(2), float64(3)}
 
 	result, err := convertToAttrValue(input)
 	if err != nil {
@@ -405,9 +404,14 @@ func TestConvertToAttrValue_MixedSlice(t *testing.T) {
 		t.Fatalf("expected types.List, got %T", result)
 	}
 
-	// Verify it has the expected element type (string from first element)
+	elements := listVal.Elements()
+	if len(elements) != 3 {
+		t.Fatalf("expected 3 elements, got %d", len(elements))
+	}
+
+	// Verify element type is Float64
 	elemType := listVal.ElementType(context.Background())
-	if elemType != types.StringType {
-		t.Errorf("expected element type to be StringType, got %v", elemType)
+	if elemType != types.Float64Type {
+		t.Errorf("expected element type to be Float64Type, got %v", elemType)
 	}
 }
