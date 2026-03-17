@@ -69,6 +69,23 @@ func TestNormalizeTypeName(t *testing.T) {
 			expected: "aws_vpc",
 		},
 
+		// OpenSearch
+		{
+			name:     "terraform opensearch",
+			input:    "aws_opensearch_domain",
+			expected: "aws_opensearch_domain",
+		},
+		{
+			name:     "cloud control opensearch",
+			input:    "AWS::OpenSearch::Domain",
+			expected: "aws_opensearch_domain",
+		},
+		{
+			name:     "short form opensearch",
+			input:    "opensearch_domain",
+			expected: "aws_opensearch_domain",
+		},
+
 		// Unknown types with aws_ prefix pass through
 		{
 			name:     "unknown aws type passes through",
@@ -185,6 +202,16 @@ func TestProberRegistry_GetProber(t *testing.T) {
 			t.Fatal("expected prober to be non-nil")
 		}
 	})
+
+	t.Run("supports OpenSearch domain type", func(t *testing.T) {
+		prober, err := registry.GetProber("aws_opensearch_domain")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if prober == nil {
+			t.Fatal("expected prober to be non-nil")
+		}
+	})
 }
 
 func TestProberRegistry_SupportedTypes(t *testing.T) {
@@ -203,7 +230,7 @@ func TestProberRegistry_SupportedTypes(t *testing.T) {
 		typeSet[typ] = true
 	}
 
-	expectedTypes := []string{"aws_dynamodb_table", "aws_s3_bucket", "aws_vpc"}
+	expectedTypes := []string{"aws_dynamodb_table", "aws_s3_bucket", "aws_vpc", "aws_opensearch_domain"}
 	for _, expected := range expectedTypes {
 		if !typeSet[expected] {
 			t.Errorf("expected %q to be in supported types", expected)
