@@ -65,7 +65,7 @@ jobs:
         ports:
           - 4566:4566
         env:
-          SERVICES: s3,dynamodb,ec2
+          SERVICES: s3,dynamodb,ec2,opensearch
           DEFAULT_REGION: us-east-1
         options: >-
           --health-cmd "curl -f http://localhost:4566/_localstack/health"
