@@ -28,6 +28,11 @@ var normalizedTypes = map[string]string{
 	"aws_vpc":       "aws_vpc",
 	"AWS::EC2::VPC": "aws_vpc",
 	"vpc":           "aws_vpc",
+
+	// OpenSearch
+	"aws_opensearch_domain":   "aws_opensearch_domain",
+	"AWS::OpenSearch::Domain": "aws_opensearch_domain",
+	"opensearch_domain":       "aws_opensearch_domain",
 }
 
 // ProberFactory is a function that creates a ResourceProber from an AWS config.
@@ -43,6 +48,9 @@ var proberFactories = map[string]ProberFactory{
 	},
 	"aws_vpc": func(cfg aws.Config) ResourceProber {
 		return NewEC2Prober(cfg)
+	},
+	"aws_opensearch_domain": func(cfg aws.Config) ResourceProber {
+		return NewOpenSearchProber(cfg)
 	},
 }
 
