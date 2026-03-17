@@ -76,6 +76,36 @@ output "table_tags" {
 }
 ```
 
+### VPC existence check (by Name tag)
+
+```terraform
+data "probe" "my_vpc" {
+  type = "aws_vpc"
+  id   = "production-vpc"
+}
+
+output "vpc_exists" {
+  value = data.probe.my_vpc.exists
+}
+
+output "vpc_id" {
+  value = data.probe.my_vpc.exists ? data.probe.my_vpc.properties.VpcId : null
+}
+```
+
+### VPC lookup by ID
+
+```terraform
+data "probe" "my_vpc" {
+  type = "aws_vpc"
+  id   = "vpc-0abc123def456789"
+}
+```
+
+> **Note:** When using `aws_vpc`, the `id` field accepts either a VPC ID
+> (starting with `vpc-`) or a Name tag value. If looking up by Name tag and
+> multiple VPCs share the same name, the provider returns an error.
+
 ## Schema
 
 ### Required
@@ -101,5 +131,6 @@ supported:
 | -------------------- | ---------------------- | -------------- |
 | `aws_dynamodb_table` | `AWS::DynamoDB::Table` | Table name     |
 | `aws_s3_bucket`      | `AWS::S3::Bucket`      | Bucket name    |
+| `aws_vpc`            | `AWS::EC2::VPC`        | VPC ID or Name tag |
 
 Additional resource types will be added incrementally. Contributions welcome!
