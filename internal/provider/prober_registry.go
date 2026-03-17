@@ -23,6 +23,11 @@ var normalizedTypes = map[string]string{
 	"aws_s3_bucket":   "aws_s3_bucket",
 	"AWS::S3::Bucket": "aws_s3_bucket",
 	"s3_bucket":       "aws_s3_bucket",
+
+	// VPC
+	"aws_vpc":       "aws_vpc",
+	"AWS::EC2::VPC": "aws_vpc",
+	"vpc":           "aws_vpc",
 }
 
 // ProberFactory is a function that creates a ResourceProber from an AWS config.
@@ -35,6 +40,9 @@ var proberFactories = map[string]ProberFactory{
 	},
 	"aws_s3_bucket": func(cfg aws.Config) ResourceProber {
 		return NewS3Prober(cfg)
+	},
+	"aws_vpc": func(cfg aws.Config) ResourceProber {
+		return NewEC2Prober(cfg)
 	},
 }
 

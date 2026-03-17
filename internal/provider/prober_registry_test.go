@@ -52,6 +52,23 @@ func TestNormalizeTypeName(t *testing.T) {
 			expected: "aws_s3_bucket",
 		},
 
+		// VPC
+		{
+			name:     "terraform vpc",
+			input:    "aws_vpc",
+			expected: "aws_vpc",
+		},
+		{
+			name:     "cloud control vpc",
+			input:    "AWS::EC2::VPC",
+			expected: "aws_vpc",
+		},
+		{
+			name:     "short form vpc",
+			input:    "vpc",
+			expected: "aws_vpc",
+		},
+
 		// Unknown types with aws_ prefix pass through
 		{
 			name:     "unknown aws type passes through",
@@ -158,6 +175,16 @@ func TestProberRegistry_GetProber(t *testing.T) {
 			t.Fatal("expected prober to be non-nil")
 		}
 	})
+
+	t.Run("supports VPC type", func(t *testing.T) {
+		prober, err := registry.GetProber("aws_vpc")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if prober == nil {
+			t.Fatal("expected prober to be non-nil")
+		}
+	})
 }
 
 func TestProberRegistry_SupportedTypes(t *testing.T) {
@@ -176,7 +203,7 @@ func TestProberRegistry_SupportedTypes(t *testing.T) {
 		typeSet[typ] = true
 	}
 
-	expectedTypes := []string{"aws_dynamodb_table", "aws_s3_bucket"}
+	expectedTypes := []string{"aws_dynamodb_table", "aws_s3_bucket", "aws_vpc"}
 	for _, expected := range expectedTypes {
 		if !typeSet[expected] {
 			t.Errorf("expected %q to be in supported types", expected)
