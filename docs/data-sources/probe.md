@@ -76,6 +76,35 @@ output "table_tags" {
 }
 ```
 
+### S3 bucket prefix match
+
+```terraform
+data "probe" "my_bucket" {
+  type = "aws_s3_bucket"
+  id   = "dev-data-bucket-*"
+}
+
+output "bucket_exists" {
+  value = data.probe.my_bucket.exists
+}
+
+output "bucket_name" {
+  value = (
+    data.probe.my_bucket.exists
+    ? data.probe.my_bucket.properties.BucketName
+    : null
+  )
+}
+```
+
+> **Note:** When `id` ends with `*`, the provider uses
+> prefix matching via `ListBuckets` to find a single
+> bucket whose name starts with the given prefix. If
+> multiple buckets match, the provider returns an error.
+> Prefix matching requires `s3:ListAllMyBuckets`
+> permission, which is broader than the `s3:ListBucket`
+> permission used for exact lookups.
+
 ### VPC existence check (by Name tag)
 
 ```terraform
@@ -130,7 +159,7 @@ supported:
 | Terraform Type       | AWS Type               | Identifier     |
 | -------------------- | ---------------------- | -------------- |
 | `aws_dynamodb_table` | `AWS::DynamoDB::Table` | Table name     |
-| `aws_s3_bucket`      | `AWS::S3::Bucket`      | Bucket name    |
+| `aws_s3_bucket`      | `AWS::S3::Bucket`      | Bucket name or prefix`*` |
 | `aws_vpc`            | `AWS::EC2::VPC`        | VPC ID or Name tag |
 
 Additional resource types will be added incrementally. Contributions welcome!
