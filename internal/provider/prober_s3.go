@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -35,8 +36,18 @@ func NewS3Prober(cfg aws.Config) *S3Prober {
 }
 
 // Probe checks whether an S3 bucket exists and retrieves its properties.
-// The identifier is the bucket name.
+// The identifier is the bucket name, or a prefix pattern ending with *.
 func (p *S3Prober) Probe(ctx context.Context, identifier string) (*ProbeResult, error) {
+	// Handle prefix matching when identifier ends with *
+	if strings.HasSuffix(identifier, "*") {
+		return p.probeByPrefix(ctx, identifier)
+	}
+
+	// Reject wildcards in non-suffix positions
+	if strings.Contains(identifier, "*") {
+		return nil, fmt.Errorf("wildcard (*) is only supported at the end of S3 bucket identifiers")
+	}
+
 	// HeadBucket returns success or NotFound/Forbidden
 	_, err := p.client.HeadBucket(ctx, &s3.HeadBucketInput{
 		Bucket: aws.String(identifier),
@@ -96,6 +107,39 @@ func (p *S3Prober) Probe(ctx context.Context, identifier string) (*ProbeResult, 
 	}
 
 	return result, nil
+}
+
+// probeByPrefix resolves a prefix pattern to a single bucket, then probes it.
+func (p *S3Prober) probeByPrefix(ctx context.Context, identifier string) (*ProbeResult, error) {
+	prefix := strings.TrimSuffix(identifier, "*")
+
+	if prefix == "" {
+		return nil, fmt.Errorf("S3 bucket prefix must not be empty")
+	}
+
+	// Validate no wildcard in the prefix portion
+	if strings.Contains(prefix, "*") {
+		return nil, fmt.Errorf("wildcard (*) is only supported at the end of S3 bucket identifiers")
+	}
+
+	output, err := p.client.ListBuckets(ctx, &s3.ListBucketsInput{
+		Prefix: aws.String(prefix),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	if len(output.Buckets) == 0 {
+		return &ProbeResult{Exists: false}, nil
+	}
+
+	if len(output.Buckets) > 1 {
+		return nil, fmt.Errorf("multiple S3 buckets found matching prefix %q (found %d)", prefix, len(output.Buckets))
+	}
+
+	// Exactly one match - probe it by exact name
+	bucketName := aws.ToString(output.Buckets[0].Name)
+	return p.Probe(ctx, bucketName)
 }
 
 // isS3NotFound checks for various S3 "not found" error responses.
