@@ -302,3 +302,106 @@ data "probe" "test" {
   depends_on = [aws_dynamodb_table.test]
 }
 `
+
+func TestAccProbeDataSource_vpcNotFound(t *testing.T) {
+	config := testAccProbeDataSourceConfig_vpcNotFound
+	if useLocalStack() {
+		config = testAccProbeDataSourceConfig_vpcNotFound_localstack
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.probe.test", "exists", "false"),
+					resource.TestCheckNoResourceAttr("data.probe.test", "arn"),
+					resource.TestCheckNoResourceAttr("data.probe.test", "properties"),
+				),
+			},
+		},
+	})
+}
+
+const testAccProbeDataSourceConfig_vpcNotFound = `
+data "probe" "test" {
+  type = "aws_vpc"
+  id   = "nonexistent-vpc-name-12345"
+}
+`
+
+const testAccProbeDataSourceConfig_vpcNotFound_localstack = `
+provider "probe" {
+  localstack = true
+}
+
+data "probe" "test" {
+  type = "aws_vpc"
+  id   = "nonexistent-vpc-name-12345"
+}
+`
+
+func TestAccProbeDataSource_vpcExists(t *testing.T) {
+	if !useLocalStack() {
+		t.Skip("VPC existence test only runs against LocalStack")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"aws": {
+				Source:            "hashicorp/aws",
+				VersionConstraint: "~> 5.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProbeDataSourceConfig_vpcExists_localstack,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.probe.test", "exists", "true"),
+					resource.TestCheckResourceAttrSet("data.probe.test", "arn"),
+					resource.TestCheckResourceAttrSet("data.probe.test", "properties.%"),
+					resource.TestCheckResourceAttrSet("data.probe.test", "properties.VpcId"),
+					resource.TestCheckResourceAttr("data.probe.test", "properties.CidrBlock", "10.95.0.0/16"),
+				),
+			},
+		},
+	})
+}
+
+const testAccProbeDataSourceConfig_vpcExists_localstack = `
+provider "probe" {
+  localstack = true
+}
+
+provider "aws" {
+  region                      = "us-east-1"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  access_key                  = "test"
+  secret_key                  = "test"
+
+  endpoints {
+    ec2 = "http://localhost:4566"
+  }
+}
+
+resource "aws_vpc" "test" {
+  cidr_block = "10.95.0.0/16"
+
+  tags = {
+    Name = "probe-acceptance-test-vpc"
+  }
+}
+
+data "probe" "test" {
+  type = "aws_vpc"
+  id   = "probe-acceptance-test-vpc"
+
+  depends_on = [aws_vpc.test]
+}
+`
