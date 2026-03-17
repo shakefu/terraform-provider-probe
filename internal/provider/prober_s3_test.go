@@ -6,6 +6,7 @@ package provider
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -289,5 +290,149 @@ func TestS3Prober_BucketWithTags(t *testing.T) {
 		t.Error("expected Tags in Properties to be map[string]string")
 	} else if propTags["Environment"] != "test" {
 		t.Errorf("expected Properties.Tags.Environment='test', got %q", propTags["Environment"])
+	}
+}
+
+func TestS3Prober_PrefixBareWildcard(t *testing.T) {
+	cfg := getLocalStackConfig(t)
+	if cfg == nil {
+		t.Skip("LocalStack not available")
+	}
+
+	prober := NewS3Prober(*cfg)
+	_, err := prober.Probe(context.Background(), "*")
+
+	if err == nil {
+		t.Fatal("expected error for bare wildcard")
+	}
+
+	if !strings.Contains(err.Error(), "S3 bucket prefix must not be empty") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestS3Prober_PrefixMidWildcard(t *testing.T) {
+	cfg := getLocalStackConfig(t)
+	if cfg == nil {
+		t.Skip("LocalStack not available")
+	}
+
+	prober := NewS3Prober(*cfg)
+	_, err := prober.Probe(context.Background(), "dev-*-bucket")
+
+	if err == nil {
+		t.Fatal("expected error for mid-string wildcard")
+	}
+
+	if !strings.Contains(err.Error(), "wildcard (*) is only supported at the end") {
+		t.Errorf("unexpected error: %v", err)
+	}
+}
+
+func TestS3Prober_PrefixNotFound(t *testing.T) {
+	cfg := getLocalStackConfig(t)
+	if cfg == nil {
+		t.Skip("LocalStack not available")
+	}
+
+	prober := NewS3Prober(*cfg)
+	result, err := prober.Probe(context.Background(), "nonexistent-prefix-xyz-*")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.Exists {
+		t.Error("expected Exists to be false")
+	}
+}
+
+func TestS3Prober_PrefixSingleMatch(t *testing.T) {
+	cfg := getLocalStackConfig(t)
+	if cfg == nil {
+		t.Skip("LocalStack not available")
+	}
+
+	ctx := context.Background()
+	client := s3.NewFromConfig(*cfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
+	bucketName := "probe-prefix-test-abc123"
+
+	_, err := client.CreateBucket(ctx, &s3.CreateBucketInput{
+		Bucket: aws.String(bucketName),
+	})
+	if err != nil {
+		t.Fatalf("failed to create test bucket: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_, _ = client.DeleteBucket(ctx, &s3.DeleteBucketInput{
+			Bucket: aws.String(bucketName),
+		})
+	})
+
+	prober := NewS3Prober(*cfg)
+	result, err := prober.Probe(ctx, "probe-prefix-test-*")
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if !result.Exists {
+		t.Error("expected Exists to be true")
+	}
+
+	expectedArn := "arn:aws:s3:::" + bucketName
+	if result.Arn != expectedArn {
+		t.Errorf("expected ARN=%q, got %q", expectedArn, result.Arn)
+	}
+
+	if result.Properties["BucketName"] != bucketName {
+		t.Errorf("expected BucketName=%q, got %q", bucketName, result.Properties["BucketName"])
+	}
+}
+
+func TestS3Prober_PrefixMultipleMatches(t *testing.T) {
+	cfg := getLocalStackConfig(t)
+	if cfg == nil {
+		t.Skip("LocalStack not available")
+	}
+
+	ctx := context.Background()
+	client := s3.NewFromConfig(*cfg, func(o *s3.Options) {
+		o.UsePathStyle = true
+	})
+
+	buckets := []string{
+		"probe-multi-test-aaa",
+		"probe-multi-test-bbb",
+	}
+	for _, name := range buckets {
+		_, err := client.CreateBucket(ctx, &s3.CreateBucketInput{
+			Bucket: aws.String(name),
+		})
+		if err != nil {
+			t.Fatalf("failed to create bucket %s: %v", name, err)
+		}
+	}
+
+	t.Cleanup(func() {
+		for _, name := range buckets {
+			_, _ = client.DeleteBucket(ctx, &s3.DeleteBucketInput{
+				Bucket: aws.String(name),
+			})
+		}
+	})
+
+	prober := NewS3Prober(*cfg)
+	_, err := prober.Probe(ctx, "probe-multi-test-*")
+
+	if err == nil {
+		t.Fatal("expected error for multiple matches")
+	}
+
+	if !strings.Contains(err.Error(), "multiple S3 buckets found") {
+		t.Errorf("unexpected error: %v", err)
 	}
 }
