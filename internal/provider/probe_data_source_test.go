@@ -464,3 +464,43 @@ data "probe" "test" {
   depends_on = [aws_s3_bucket.test]
 }
 `
+
+func TestAccProbeDataSource_opensearchNotFound(t *testing.T) {
+	config := testAccProbeDataSourceConfig_opensearchNotFound
+	if useLocalStack() {
+		config = testAccProbeDataSourceConfig_opensearchNotFound_localstack
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.probe.test", "exists", "false"),
+					resource.TestCheckNoResourceAttr("data.probe.test", "arn"),
+					resource.TestCheckNoResourceAttr("data.probe.test", "properties"),
+				),
+			},
+		},
+	})
+}
+
+const testAccProbeDataSourceConfig_opensearchNotFound = `
+data "probe" "test" {
+  type = "aws_opensearch_domain"
+  id   = "nonexistent-domain-12345"
+}
+`
+
+const testAccProbeDataSourceConfig_opensearchNotFound_localstack = `
+provider "probe" {
+  localstack = true
+}
+
+data "probe" "test" {
+  type = "aws_opensearch_domain"
+  id   = "nonexistent-domain-12345"
+}
+`

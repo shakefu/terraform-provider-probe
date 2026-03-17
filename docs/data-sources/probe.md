@@ -135,6 +135,27 @@ data "probe" "my_vpc" {
 > (starting with `vpc-`) or a Name tag value. If looking up by Name tag and
 > multiple VPCs share the same name, the provider returns an error.
 
+### OpenSearch domain existence check
+
+```terraform
+data "probe" "search" {
+  type = "aws_opensearch_domain"
+  id   = "my-search-domain"
+}
+
+output "domain_exists" {
+  value = data.probe.search.exists
+}
+
+output "domain_endpoint" {
+  value = (
+    data.probe.search.exists
+    ? data.probe.search.properties.Endpoint
+    : null
+  )
+}
+```
+
 ## Schema
 
 ### Required
@@ -161,5 +182,6 @@ supported:
 | `aws_dynamodb_table` | `AWS::DynamoDB::Table` | Table name     |
 | `aws_s3_bucket`      | `AWS::S3::Bucket`      | Bucket name or prefix`*` |
 | `aws_vpc`            | `AWS::EC2::VPC`        | VPC ID or Name tag |
+| `aws_opensearch_domain` | `AWS::OpenSearch::Domain` | Domain name |
 
 Additional resource types will be added incrementally. Contributions welcome!
