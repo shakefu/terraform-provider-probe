@@ -405,3 +405,61 @@ data "probe" "test" {
   depends_on = [aws_vpc.test]
 }
 `
+
+func TestAccProbeDataSource_s3PrefixMatch(t *testing.T) {
+	if !useLocalStack() {
+		t.Skip("S3 prefix test only runs against LocalStack")
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { testAccPreCheck(t) },
+		ProtoV6ProviderFactories: testAccProtoV6ProviderFactories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"aws": {
+				Source:            "hashicorp/aws",
+				VersionConstraint: "~> 5.0",
+			},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: testAccProbeDataSourceConfig_s3Prefix_localstack,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("data.probe.test", "exists", "true"),
+					resource.TestCheckResourceAttrSet("data.probe.test", "arn"),
+					resource.TestCheckResourceAttrSet("data.probe.test", "properties.%"),
+					resource.TestCheckResourceAttrSet("data.probe.test", "properties.BucketName"),
+				),
+			},
+		},
+	})
+}
+
+const testAccProbeDataSourceConfig_s3Prefix_localstack = `
+provider "probe" {
+  localstack = true
+}
+
+provider "aws" {
+  region                      = "us-east-1"
+  skip_credentials_validation = true
+  skip_metadata_api_check     = true
+  skip_requesting_account_id  = true
+  access_key                  = "test"
+  secret_key                  = "test"
+
+  endpoints {
+    s3 = "http://localhost:4566"
+  }
+}
+
+resource "aws_s3_bucket" "test" {
+  bucket = "probe-acc-prefix-test-hash789"
+}
+
+data "probe" "test" {
+  type = "aws_s3_bucket"
+  id   = "probe-acc-prefix-test-*"
+
+  depends_on = [aws_s3_bucket.test]
+}
+`
