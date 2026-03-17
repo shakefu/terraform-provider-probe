@@ -5,13 +5,60 @@ package provider
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
 	"github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/smithy-go"
 )
+
+func TestIsEC2NotFound(t *testing.T) {
+	tests := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name: "InvalidVpcID.NotFound API error",
+			err: &smithy.GenericAPIError{
+				Code:    "InvalidVpcID.NotFound",
+				Message: "The vpc ID 'vpc-12345' does not exist",
+			},
+			expected: true,
+		},
+		{
+			name: "different API error code",
+			err: &smithy.GenericAPIError{
+				Code:    "UnauthorizedAccess",
+				Message: "You are not authorized",
+			},
+			expected: false,
+		},
+		{
+			name:     "non-API error",
+			err:      errors.New("connection timeout"),
+			expected: false,
+		},
+		{
+			name:     "wrapped API error",
+			err:      fmt.Errorf("operation failed: %w", &smithy.GenericAPIError{Code: "InvalidVpcID.NotFound", Message: "not found"}),
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isEC2NotFound(tt.err)
+			if result != tt.expected {
+				t.Errorf("isEC2NotFound(%v) = %v, want %v", tt.err, result, tt.expected)
+			}
+		})
+	}
+}
 
 func TestEC2Prober_VPCNotFound_ByID(t *testing.T) {
 	cfg := getLocalStackConfig(t)
