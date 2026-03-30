@@ -24,6 +24,16 @@ data "probe" "s3_bucket" {
   id   = "test-bucket"
 }
 
+data "probe" "vpc" {
+  type = "aws_vpc"
+  id   = "test-vpc"
+}
+
+data "probe" "opensearch" {
+  type = "aws_opensearch_domain"
+  id   = "test-domain"
+}
+
 # You can also use AWS CloudFormation type names
 data "probe" "dynamodb_cfn_style" {
   type = "AWS::DynamoDB::Table"
@@ -34,6 +44,8 @@ output "resources" {
   value = {
     dynamodb_exists     = data.probe.dynamodb_table.exists
     s3_exists           = data.probe.s3_bucket.exists
+    vpc_exists          = data.probe.vpc.exists
+    opensearch_exists   = data.probe.opensearch.exists
     dynamodb_cfn_exists = data.probe.dynamodb_cfn_style.exists
   }
 }
