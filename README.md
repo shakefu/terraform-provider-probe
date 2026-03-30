@@ -208,10 +208,12 @@ resource "aws_iam_role_policy" "additional_permissions" {
 The provider uses native AWS SDK calls for full property retrieval, including
 Tags. Currently supported resource types:
 
-| Terraform Type       | AWS Type               | Identifier     |
-| -------------------- | ---------------------- | -------------- |
-| `aws_dynamodb_table` | `AWS::DynamoDB::Table` | Table name     |
-| `aws_s3_bucket`      | `AWS::S3::Bucket`      | Bucket name    |
+| Terraform Type          | AWS Type                  | Identifier              |
+| ----------------------- | ------------------------- | ----------------------- |
+| `aws_dynamodb_table`    | `AWS::DynamoDB::Table`    | Table name              |
+| `aws_s3_bucket`         | `AWS::S3::Bucket`         | Bucket name or prefix`*`|
+| `aws_vpc`               | `AWS::EC2::VPC`           | VPC ID or Name tag      |
+| `aws_opensearch_domain` | `AWS::OpenSearch::Domain` | Domain name             |
 
 Additional resource types will be added incrementally. Contributions welcome!
 
