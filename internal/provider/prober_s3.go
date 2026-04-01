@@ -146,15 +146,5 @@ func (p *S3Prober) probeByPrefix(ctx context.Context, identifier string) (*Probe
 func isS3NotFound(err error) bool {
 	// S3 returns 404 as a generic HTTP error in some cases
 	errStr := err.Error()
-	return contains(errStr, "404") || contains(errStr, "NotFound") || contains(errStr, "NoSuchBucket")
-}
-
-// contains is a simple string contains helper.
-func contains(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
+	return strings.Contains(errStr, "404") || strings.Contains(errStr, "NotFound") || strings.Contains(errStr, "NoSuchBucket")
 }
